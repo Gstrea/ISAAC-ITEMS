@@ -7,176 +7,216 @@ from bs4 import BeautifulSoup
 
 
 URL = "https://www.tboi.com/"
-
 OUTPUT = Path("data/items.json")
+
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 IsaacItemFinder/1.0"
+}
 
 
 def clean(text):
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def parse_item(block):
-    text = block.get_text("\n", strip=True)
+def parse_page(html):
+    soup = BeautifulSoup(html, "html.parser")
 
-    id_match = re.search(
-        r"ItemID:\s*(\d+)",
-        text
-    )
+    # Pobieramy cały tekst strony w kolejności,
+    # w jakiej występuje w HTML.
+    lines = []
 
-    if not id_match:
-        return None
+    for line in soup.stripped_strings:
+        line = clean(line)
 
-    item_id = int(id_match.group(1))
+        if line:
+            lines.append(line)
 
+    items = []
 
-    quality_match = re.search(
-        r"Quality:\s*(\d+)",
-        text
-    )
+    i = 0
 
-    quality = (
-        int(quality_match.group(1))
-        if quality_match
-        else None
-    )
+    while i < len(lines):
 
-
-    type_match = re.search(
-        r"Type:\s*(.+)",
-        text
-    )
-
-    item_type = []
-
-    if type_match:
-        item_type = [
-            clean(x)
-            for x in type_match.group(1).split(",")
-        ]
-
-
-    pool_match = re.search(
-        r"Item Pool:\s*(.+)",
-        text
-    )
-
-    pools = []
-
-    if pool_match:
-        pools = [
-            clean(x)
-            for x in pool_match.group(1).split(",")
-        ]
-
-
-    lines = [
-        clean(line)
-        for line in text.splitlines()
-        if clean(line)
-    ]
-
-
-    name = ""
-
-    for line in lines:
-
-        if (
-            not line.startswith("ItemID:")
-            and not line.startswith("Quality:")
-            and not line.startswith("Type:")
-            and not line.startswith("Item Pool:")
-            and not line.startswith("Recharge Time:")
-        ):
-
-            name = line
-            break
-
-
-    pickup = ""
-
-    try:
-
-        quality_index = next(
-            i
-            for i, line in enumerate(lines)
-            if line.startswith("Quality:")
+        # Szukamy:
+        # ItemID: 123
+        match = re.fullmatch(
+            r"ItemID:\s*(\d+)",
+            lines[i]
         )
 
-        if quality_index > 0:
+        if not match:
+            i += 1
+            continue
 
-            candidate = lines[
-                quality_index - 1
-            ]
+        item_id = int(match.group(1))
+
+        # -----------------------------------------
+        # SZUKANIE NAZWY I PICKUP TEXTU
+        # -----------------------------------------
+
+        name = ""
+        pickup = ""
+
+        # Przed ItemID znajdują się zwykle:
+        #
+        # Item name
+        # "Pickup text"
+        # ItemID: xxx
+        #
+        # Szukamy maksymalnie kilku linii wstecz.
+
+        previous = lines[max(0, i - 5):i]
+
+        for line in reversed(previous):
+
+            if line.startswith('"') and line.endswith('"'):
+                pickup = line.strip('"')
+                continue
 
             if (
-                not candidate.startswith("ItemID:")
-                and not candidate.startswith("Type:")
-                and not candidate.startswith("Item Pool:")
+                line
+                and not line.startswith("ItemID:")
+                and not line.startswith("Quality:")
+                and not line.startswith("Type:")
+                and not line.startswith("Item Pool:")
+                and not line.startswith("Recharge Time:")
+                and not line.startswith("*")
             ):
+                name = line
+                break
 
-                pickup = candidate.strip('"')
+        # -----------------------------------------
+        # SZUKANIE DANYCH PO ITEMID
+        # -----------------------------------------
 
-    except StopIteration:
-        pass
+        quality = None
+        item_type = []
+        pools = []
 
+        description = []
 
-    description_lines = []
+        j = i + 1
 
-    if quality_match:
+        while j < len(lines):
 
-        start = False
+            line = lines[j]
 
-        for line in lines:
+            # Następny item
+            if re.fullmatch(
+                r"ItemID:\s*(\d+)",
+                line
+            ):
+                break
 
-            if line.startswith("Quality:"):
-                start = True
+            # Quality
+            quality_match = re.fullmatch(
+                r"Quality:\s*(\d+)",
+                line
+            )
+
+            if quality_match:
+                quality = int(
+                    quality_match.group(1)
+                )
+
+                j += 1
                 continue
 
+            # Type
             if line.startswith("Type:"):
-                break
 
+                value = line[
+                    len("Type:"):
+                ].strip()
+
+                item_type = [
+                    clean(x)
+                    for x in value.split(",")
+                    if clean(x)
+                ]
+
+                j += 1
+                continue
+
+            # Item Pool
             if line.startswith("Item Pool:"):
-                break
 
-            if not start:
+                value = line[
+                    len("Item Pool:"):
+                ].strip()
+
+                pools = [
+                    clean(x)
+                    for x in value.split(",")
+                    if clean(x)
+                ]
+
+                j += 1
                 continue
 
-            if line == pickup:
+            # Recharge Time
+            if line.startswith(
+                "Recharge Time:"
+            ):
+                j += 1
                 continue
 
-            description_lines.append(line)
+            # Separatory
+            if line == "*":
+                j += 1
+                continue
 
+            # Nagłówki sekcji
+            if (
+                line.startswith(
+                    "The Binding of Isaac:"
+                )
+                or line.startswith(
+                    "Repentance Items"
+                )
+                or line.startswith(
+                    "Afterbirth"
+                )
+                or line.startswith(
+                    "Rebirth Items"
+                )
+            ):
+                j += 1
+                continue
 
-    description = "\n".join(
-        description_lines
-    )
+            # Pickup nie powinien trafić do opisu
+            if line == f'"{pickup}"':
+                j += 1
+                continue
 
+            # Pozostały tekst traktujemy jako opis
+            if (
+                line
+                and not line.startswith("ItemID:")
+            ):
+                description.append(line)
 
-    image = ""
+            j += 1
 
-    img = block.find("img")
+        items.append({
+            "id": item_id,
+            "name": name,
+            "quality": quality,
+            "colors": [],
+            "pools": pools,
+            "types": item_type,
+            "dlcs": [],
+            "pickup": pickup,
+            "description": "\n".join(
+                description
+            ),
+            "image": ""
+        })
 
-    if img:
+        i = j
 
-        image = (
-            img.get("src")
-            or img.get("data-src")
-            or ""
-        )
-
-
-    return {
-        "id": item_id,
-        "name": name,
-        "quality": quality,
-        "colors": [],
-        "pools": pools,
-        "types": item_type,
-        "dlcs": [],
-        "pickup": pickup,
-        "description": description,
-        "image": image
-    }
+    return items
 
 
 def main():
@@ -185,109 +225,63 @@ def main():
 
     response = requests.get(
         URL,
-        headers={
-            "User-Agent":
-            "Mozilla/5.0 IsaacItemFinder/1.0"
-        },
+        headers=HEADERS,
         timeout=30
     )
 
     response.raise_for_status()
 
-
     print(
-        "Downloaded:",
-        len(response.text),
-        "characters"
+        f"Downloaded {len(response.text)} characters"
     )
 
-
-    soup = BeautifulSoup(
-        response.text,
-        "html.parser"
+    items = parse_page(
+        response.text
     )
 
+    # Usuwamy ewentualne duplikaty ID.
+    unique = {}
 
-    items = {}
+    for item in items:
+        unique[item["id"]] = item
 
-
-    # Szukamy wszystkich miejsc,
-    # w których występuje ItemID.
-    for text_node in soup.find_all(
-        string=re.compile(
-            r"ItemID:\s*\d+"
-        )
-    ):
-
-        parent = text_node.parent
-
-
-        # Idziemy kilka poziomów w górę,
-        # szukając kontenera pojedynczego itemu.
-        for _ in range(8):
-
-            if parent is None:
-                break
-
-
-            item_id_count = len(
-                re.findall(
-                    r"ItemID:\s*\d+",
-                    parent.get_text(
-                        " ",
-                        strip=True
-                    )
-                )
-            )
-
-
-            if item_id_count == 1:
-
-                item = parse_item(parent)
-
-                if item:
-
-                    items[item["id"]] = item
-
-                break
-
-
-            parent = parent.parent
-
-
-    result = list(
-        items.values()
+    items = list(
+        unique.values()
     )
 
-
-    result.sort(
-        key=lambda item: item["id"]
+    items.sort(
+        key=lambda x: x["id"]
     )
-
 
     OUTPUT.parent.mkdir(
         parents=True,
         exist_ok=True
     )
 
-
     OUTPUT.write_text(
         json.dumps(
-            result,
+            items,
             indent=2,
             ensure_ascii=False
         ),
         encoding="utf-8"
     )
 
-
     print(
-        f"Saved {len(result)} items"
+        f"Saved {len(items)} items"
     )
 
-    print(
-        f"Output: {OUTPUT}"
-    )
+    if items:
+
+        print("\nFirst 5 items:")
+
+        for item in items[:5]:
+
+            print(
+                f'{item["id"]}: '
+                f'{item["name"]} '
+                f'(Q{item["quality"]})'
+            )
 
 
 if __name__ == "__main__":
