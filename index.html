@@ -1,1 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <title>Isaac Filter</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<header class="header">
+
+    <div class="logo">
+        <div class="logo-main">ISAAC FILTER</div>
+        <div class="logo-sub">
+            The Binding of Isaac item database
+        </div>
+    </div>
+
+    <div class="header-info">
+        <span id="itemCount">Loading...</span>
+
+        <a
+            href="https://www.tboi.com/"
+            target="_blank"
+            rel="noopener"
+        >
+            Source ↗
+        </a>
+    </div>
+
+</header>
+
+
+<div class="layout">
+
+    <!-- =========================
+         SIDEBAR
+    ========================== -->
+
+    <aside class="sidebar">
+
+        <div class="filter-header">
+
+            <span>FILTERS</span>
+
+            <button id="clearFilters">
+                CLEAR
+            </button>
+
+        </div>
+
+
+        <!-- SEARCH -->
+
+        <div class="filter-group">
+
+            <label>SEARCH</label>
+
+            <input
+                id="searchInput"
+                type="text"
+                placeholder="Search items..."
+                autocomplete="off"
+            >
+
+        </div>
+
+
+        <!-- QUALITY -->
+
+        <div class="filter-group">
+
+            <label>QUALITY</label>
+
+            <div class="quality-grid">
+
+                <button class="quality-btn" data-quality="0">
+                    0
+                </button>
+
+                <button class="quality-btn" data-quality="1">
+                    1
+                </button>
+
+                <button class="quality-btn" data-quality="2">
+                    2
+                </button>
+
+                <button class="quality-btn" data-quality="3">
+                    3
+                </button>
+
+                <button class="quality-btn" data-quality="4">
+                    4
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- TYPE -->
+
+        <div class="filter-group">
+
+            <label>TYPE</label>
+
+            <div
+                id="typeFilters"
+                class="checkbox-list"
+            ></div>
+
+        </div>
+
+
+        <!-- ITEM POOL -->
+
+        <div class="filter-group">
+
+            <label>ITEM POOL</label>
+
+            <div
+                id="poolFilters"
+                class="checkbox-list"
+            ></div>
+
+        </div>
+
+
+        <!-- COLOUR -->
+
+        <div class="filter-group">
+
+            <label>COLOUR</label>
+
+            <div
+                id="colorFilters"
+                class="checkbox-list"
+            ></div>
+
+            <div
+                id="colorEmpty"
+                class="filter-empty"
+            >
+                No colour data yet
+            </div>
+
+        </div>
+
+
+        <!-- DLC -->
+
+        <div class="filter-group">
+
+            <label>GAME / DLC</label>
+
+            <div
+                id="dlcFilters"
+                class="checkbox-list"
+            ></div>
+
+            <div
+                id="dlcEmpty"
+                class="filter-empty"
+            >
+                No DLC data yet
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =========================
+         CONTENT
+    ========================== -->
+
+    <main class="content">
+
+        <div class="results-header">
+
+            <div>
+
+                <div id="resultsText">
+                    Loading...
+                </div>
+
+            </div>
+
+            <select id="sortSelect">
+
+                <option value="id">
+                    ID
+                </option>
+
+                <option value="name">
+                    Name
+                </option>
+
+                <option value="quality-desc">
+                    Quality ↓
+                </option>
+
+                <option value="quality-asc">
+                    Quality ↑
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div
+            id="itemsContainer"
+            class="items-grid"
+        ></div>
+
+    </main>
+
+</div>
+
+
+<script src="app.js"></script>
+
+</body>
+</html>
